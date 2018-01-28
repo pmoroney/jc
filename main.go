@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -84,7 +86,7 @@ func shutdownHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func hashHandler(w http.ResponseWriter, r *http.Request) {
+func hashPostHandler(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	if r.Method != "POST" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -127,9 +129,43 @@ func hashHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func hashGetHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	idString := strings.TrimPrefix(r.URL.Path, "/hash/")
+	id, err := strconv.ParseInt(idString, 10, strconv.IntSize)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	hash, ok := hashRegisty.get(int(id))
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if hash == "" {
+		// hash hasn't been set yet. Return 404.
+		// Could make it so the request waits until there is a value.
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	_, err = fmt.Fprint(w, hash)
+	if err != nil {
+		log.Printf("error while writing hash: %s", err)
+		return
+	}
+}
+
 func handler() http.Handler {
 	r := http.NewServeMux()
-	r.HandleFunc("/hash", hashHandler)
+	r.HandleFunc("/hash", hashPostHandler)
+	r.HandleFunc("/hash/", hashGetHandler)
 	r.HandleFunc("/shutdown", shutdownHandler)
 	return r
 }

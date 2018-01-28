@@ -9,12 +9,6 @@ import (
 	"testing"
 )
 
-type hashTest struct {
-	Name   string
-	Pass   string
-	Answer string
-}
-
 var hashTests = []struct {
 	name   string
 	pass   string
@@ -45,10 +39,10 @@ func TestRouting(t *testing.T) {
 			}
 			body, err := ioutil.ReadAll(res.Body)
 			if err != nil {
-				t.Fatal("POST could not read body: %s", err)
+				t.Fatalf("POST could not read body: %s", err)
 			}
 			if string(body) != ht.answer {
-				t.Fatal("POST expected '%s' but got '%s'", ht.answer, body)
+				t.Fatalf("POST expected '%s' but got '%s'", ht.answer, body)
 			}
 		})
 	}

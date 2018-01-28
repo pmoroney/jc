@@ -9,9 +9,56 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 )
+
+// hashMap is a map of hashes. The identifers are currently integers.
+// If hashes were going to be saved long term, or we expect more than
+// an int can store, we may want to use a string as the identifer.
+// If we run are getting so many requests that we have cache contention
+// for the RWMutex, we can switch to using a sync.Map instead. But that
+// limits us to Go1.9+ and may be slower
+type hashMap struct {
+	m  map[int]string
+	mu sync.RWMutex
+}
+
+// add returns the identifier for the next hash and reserves that space in the map.
+// Currently it just gives the next available identifier, but if we needed
+// a more opaque identifier we could pick a random one and check if it exists.
+// but that adds more overhead.
+func (h *hashMap) add() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	i := len(h.m)
+	h.m[i] = ""
+	return i
+}
+
+// set provides the hashed value for the identifier.
+func (h *hashMap) set(i int, hash string) {
+	h.mu.Lock()
+	h.m[i] = hash
+	h.mu.Unlock()
+}
+
+// get returns the hash for the requested identifier.
+// If the identifier does not exist, false is returned for the second return value.
+func (h *hashMap) get(i int) (string, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	hash, ok := h.m[i]
+	return hash, ok
+}
+
+// hashRegistry stores hashes in memory.
+// If they need to be saved between instances,
+// a database or some other storage can be used.
+var hashRegisty = hashMap{m: map[int]string{}}
 
 // HashAndEncode performs a sha512 hash on a string and then
 // encodes the hash using base64 and returns it.
@@ -61,11 +108,22 @@ func hashHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hash := HashAndEncode(pass[0])
+	id := hashRegisty.add()
+	_, err = fmt.Fprintln(w, id)
+	if err != nil {
+		log.Printf("error while writing identifier: %s", err)
+		return
+	}
+
 	time.Sleep(time.Until(now.Add(5 * time.Second)))
+
+	hash := HashAndEncode(pass[0])
+	hashRegisty.set(id, hash)
+
 	_, err = fmt.Fprint(w, hash)
 	if err != nil {
 		log.Printf("error while writing hash: %s", err)
+		return
 	}
 }
 

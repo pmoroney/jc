@@ -9,15 +9,15 @@ import (
 	"testing"
 )
 
-var hashTests = []struct {
-	name   string
-	pass   string
-	answer string
-}{
-	{name: "angryMonkey", pass: "angryMonkey", answer: "ZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q=="},
-}
-
 func TestHashAndEncode(t *testing.T) {
+	var hashTests = []struct {
+		name   string
+		pass   string
+		answer string
+	}{
+		{name: "angryMonkey", pass: "angryMonkey", answer: "ZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q=="},
+		{name: "cheese", pass: "cheese", answer: "mtBO93jfSmM/wBFk1rSFzgxsv3yr0EBeyesLN8L2XylbWkOEpZ8ebovEjGXD4uRXwSATzZHVXWIBa27r809chw=="},
+	}
 	for _, ht := range hashTests {
 		t.Run(ht.name, func(t *testing.T) {
 			if ht.answer != HashAndEncode(ht.pass) {
@@ -28,6 +28,14 @@ func TestHashAndEncode(t *testing.T) {
 }
 
 func TestRouting(t *testing.T) {
+	var hashTests = []struct {
+		name   string
+		pass   string
+		answer string
+	}{
+		{name: "angryMonkey", pass: "angryMonkey", answer: "0\nZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q=="},
+		{name: "cheese", pass: "cheese", answer: "1\nmtBO93jfSmM/wBFk1rSFzgxsv3yr0EBeyesLN8L2XylbWkOEpZ8ebovEjGXD4uRXwSATzZHVXWIBa27r809chw=="},
+	}
 	srv := httptest.NewServer(handler())
 	defer srv.Close()
 

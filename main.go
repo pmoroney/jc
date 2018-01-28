@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha512"
 	"encoding/base64"
+	"encoding/json"
+	"expvar"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +17,9 @@ import (
 	"syscall"
 	"time"
 )
+
+var hashCount = expvar.NewInt("hashCount")
+var totalTime = expvar.NewInt("totalTime")
 
 // hashMap is a map of hashes. The identifers are currently integers.
 // If hashes were going to be saved long term, or we expect more than
@@ -116,6 +121,10 @@ func hashPostHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("error while writing identifier: %s", err)
 		return
 	}
+	f, ok := w.(http.Flusher)
+	if ok {
+		f.Flush()
+	}
 
 	time.Sleep(time.Until(now.Add(5 * time.Second)))
 
@@ -127,6 +136,8 @@ func hashPostHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("error while writing hash: %s", err)
 		return
 	}
+	hashCount.Add(1)
+	totalTime.Add(time.Since(now).Nanoseconds())
 }
 
 func hashGetHandler(w http.ResponseWriter, r *http.Request) {
@@ -162,11 +173,41 @@ func hashGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func statsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	c := hashCount.Value()
+	t := totalTime.Value()
+
+	enc := json.NewEncoder(w)
+	if c == 0 {
+		err := enc.Encode(map[string]int64{
+			"total":   0,
+			"average": 0,
+		})
+		if err != nil {
+			log.Printf("error while encoding 0 value stats: %s", err)
+		}
+		return
+	}
+	err := enc.Encode(map[string]int64{
+		"total":   c,
+		"average": (t / c) / 1000000,
+	})
+	if err != nil {
+		log.Printf("error while encoding stats: %s", err)
+	}
+}
+
 func handler() http.Handler {
 	r := http.NewServeMux()
 	r.HandleFunc("/hash", hashPostHandler)
 	r.HandleFunc("/hash/", hashGetHandler)
 	r.HandleFunc("/shutdown", shutdownHandler)
+	r.HandleFunc("/stats", statsHandler)
 	return r
 }
 
@@ -194,7 +235,7 @@ func main() {
 	}()
 
 	<-shutdown
-	log.Println("Stopping gracefully")
+	log.Println("stopping gracefully")
 
 	err := s.Shutdown(context.Background())
 	if err != nil {
